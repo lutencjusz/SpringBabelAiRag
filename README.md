@@ -1,41 +1,43 @@
+<div align="right">PL: <a href="README_PL.md">README_PL.md</a></div>
+
 # SpringBabelAiRag
 
-Prosty projekt `Spring Boot` + `Embabel` do generowania wpisów blogowych przy pomocy modeli OpenAI.
+A simple `Spring Boot` + `Embabel` project for generating blog posts using OpenAI models.
 
-Aplikacja:
-- przyjmuje pytanie lub temat,
-- tłumaczy wejście na angielski,
-- tworzy szkic wpisu,
-- poprawia technicznie treść,
-- tłumaczy wynik na polski,
-- zapisuje gotowy wpis do katalogu `blog-posts/`.
+The application:
+- accepts a question or topic,
+- translates the input into English,
+- creates a draft blog post,
+- improves the technical quality of the content,
+- translates the final result into Polish,
+- saves the finished post to the `blog-posts/` directory.
 
-## Wymagania
+## Requirements
 
 - Java 25
 - Git
-- dostęp do OpenAI API
+- access to the OpenAI API
 
-Projekt używa:
+The project uses:
 - Spring Boot `3.5.13`
 - Spring AI BOM `1.1.4`
 - Embabel `0.4.0-SNAPSHOT`
 
-## Konfiguracja
+## Configuration
 
-Klucz OpenAI jest ładowany z lokalnego pliku `.env`.
+The OpenAI key is loaded from a local `.env` file.
 
-Utwórz plik `.env` w katalogu głównym projektu:
+Create a `.env` file in the project root directory:
 
 ```dotenv
 OPENAI_API_KEY=twoj_klucz_openai
 ```
 
-Plik `.env` jest ignorowany przez Git i nie powinien trafiać do repozytorium.
+The `.env` file is ignored by Git and should not be committed to the repository.
 
-## Uruchomienie
+## Running
 
-W PowerShell:
+In PowerShell:
 
 ```powershell
 Set-Location "C:\Data\Java\SpringBabelRag"
@@ -43,43 +45,43 @@ $env:JAVA_HOME="C:\Users\micha\.jdks\ms-25.0.2"
 .\mvnw.cmd spring-boot:run
 ```
 
-Jeśli `java` nie wskazuje na JDK 25, aplikacja może zakończyć się błędem `UnsupportedClassVersionError`.
+If `java` does not point to JDK 25, the application may fail with `UnsupportedClassVersionError`.
 
 ## Build
 
-Kompilacja bez testów:
+Compile without tests:
 
 ```powershell
 Set-Location "C:\Data\Java\SpringBabelRag"
 .\mvnw.cmd -DskipTests compile
 ```
 
-Walidacja projektu:
+Project validation:
 
 ```powershell
 Set-Location "C:\Data\Java\SpringBabelRag"
 .\mvnw.cmd validate
 ```
 
-## Jak używać
+## How to use
 
-Po uruchomieniu możesz użyć poleceń Embabel shell i zadać temat wpisu, np.:
+After starting the application, you can use Embabel shell commands and provide a blog topic, for example:
 
 ```text
 Wyjasnij działanie virtualnych wątków w Java
 ```
 
-Gotowy wpis zostanie zapisany jako plik Markdown w katalogu `blog-posts/`.
+The generated post will be saved as a Markdown file in the `blog-posts/` directory.
 
-## Struktura projektu
+## Project structure
 
-- `src/main/java/com/example/spring_babel_rag/` - kod aplikacji
-- `src/main/resources/application.yaml` - konfiguracja Spring i Embabel
-- `.env` - lokalny sekret OpenAI
-- `blog-posts/` - wygenerowane wpisy
+- `src/main/java/com/example/spring_babel_rag/` - application code
+- `src/main/resources/application.yaml` - Spring and Embabel configuration
+- `.env` - local OpenAI secret
+- `blog-posts/` - generated blog posts
 
-## Uwagi
+## Notes
 
-- Jeśli pojawi się błąd `401`, najczęściej oznacza to nieprawidłowy lub niewczytany klucz OpenAI.
-- Jeśli wcześniej ujawniono klucz API, należy go zrotować w panelu OpenAI.
+- If a `401` error appears, it usually means the OpenAI key is invalid or was not loaded.
+- If the API key was previously exposed, it should be rotated in the OpenAI dashboard.
 
