@@ -28,12 +28,10 @@ public class BlogWriterAgent {
     @Action(description = "Translate question for English")
     public String translateQuestion(UserInput userInput, Ai ai) {
         return ai
-                .withDefaultLlm()
+                .withLlmByRole("translator")
                 .withId("tłumacz-pytania-na-angielski")
-                .creating(String.class)
+                .withPromptContributor(Persons.TRANSLATOR).creating(String.class)
                 .fromPrompt("""
-                        You are a translator. if userInput is in Polish, translate this question into English.
-                        
                         Question: %s
                         """.formatted(userInput.getContent()));
     }
@@ -43,9 +41,9 @@ public class BlogWriterAgent {
         return ai
                 .withDefaultLlm()
                 .withId("szkicownik-wpisów-bloga")
+                .withPromptContributor(Persons.DEVELOPER)
                 .creating(BlogDraft.class)
                 .fromPrompt("""
-                        You are a software developer and educator writing a blog post.
                         Write a blog post about: %s
                         
                         Keep it practical and beginner friendly.
@@ -59,11 +57,10 @@ public class BlogWriterAgent {
     public ReviewedPost reviewAndImproveBlogDraft(BlogDraft draft, Ai ai) {
         return ai
                 .withDefaultLlm()
+                .withPromptContributor(Persons.REVIEWER)
                 .withId("recenzent-szkiców-bloga")
                 .creating(ReviewedPost.class)
-                .fromPrompt("""
-                        You are a technical editor. Review and improve this blog post.
-                        
+                .fromPrompt("""                      
                         Title: %s
                         Content: %s
                         
@@ -77,12 +74,11 @@ public class BlogWriterAgent {
     @Action(description = "Translate the blog post on polish language")
     public ReviewedPost translateOnPolishReviewedBlogPost(ReviewedPost reviewedPost, Ai ai) {
         ReviewedPost TranslatedBlogPost = ai
-                .withDefaultLlm()
+                .withLlmByRole("translator")
+                .withPromptContributor(Persons.TRANSLATOR)
                 .withId("tłumacz-szkiców-bloga-na-polski")
                 .creating(ReviewedPost.class)
                 .fromPrompt("""
-                        You are a translator. Translate this blog post into Polish.
-                        
                         Title: %s
                         Content: %s
                         """.formatted(reviewedPost.title(), reviewedPost.content()));

@@ -13,7 +13,7 @@ embabel:
       models:
         openai:
           api-key: ${OPENAI_API_KEY}
-model:
-  default-llm: gpt-5-mini
-  llms:
-    reviewer: gpt-4.1
+  models:
+    default-llm: gpt-5.4-mini
+    llms:
+      translator: gpt-4o

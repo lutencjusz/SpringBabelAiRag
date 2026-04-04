@@ -44,6 +44,10 @@ Set-Location "C:\Data\Java\SpringBabelRag"
 $env:JAVA_HOME="C:\Users\micha\.jdks\ms-25.0.2"
 .\mvnw.cmd spring-boot:run
 ```
+or simply:
+```powershell
+.\start.cmd
+```
 
 If `java` does not point to JDK 25, the application may fail with `UnsupportedClassVersionError`.
 
