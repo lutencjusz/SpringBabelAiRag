@@ -70,7 +70,7 @@ public class BlogWriterAgent {
                         """.formatted(draft.title(), draft.content()));
     }
 
-    @AchievesGoal(description = "all the blog post is translated on polish language")
+    @AchievesGoal(description = "blog post is translated on polish language")
     @Action(description = "Translate the blog post on polish language")
     public ReviewedPost translateOnPolishReviewedBlogPost(ReviewedPost reviewedPost, Ai ai) {
         ReviewedPost TranslatedBlogPost = ai
