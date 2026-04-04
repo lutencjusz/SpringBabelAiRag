@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: spring-babel-rag
+  config:
+    import: optional:file:.env[.properties]
+
+blog-write-agent:
+  outputDir: blog-posts
+
+embabel:
+  agent:
+    platform:
+      models:
+        openai:
+          api-key: ${OPENAI_API_KEY}
+model:
+  default-llm: gpt-5-mini
+  llms:
+    reviewer: gpt-4.1
