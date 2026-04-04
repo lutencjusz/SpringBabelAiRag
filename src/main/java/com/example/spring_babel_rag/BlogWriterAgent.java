@@ -56,7 +56,7 @@ public class BlogWriterAgent {
     @Action(description = "Check and correct the blog post. Fix any technical errors and tighten the writing.")
     public ReviewedPost reviewAndImproveBlogDraft(BlogDraft draft, Ai ai) {
         return ai
-                .withDefaultLlm()
+                .withLlmByRole("reviewer")
                 .withPromptContributor(Persons.REVIEWER)
                 .withId("recenzent-szkiców-bloga")
                 .creating(ReviewedPost.class)
