@@ -7,6 +7,15 @@ spring:
 blog-write-agent:
   outputDir: blog-posts
 
+# Konfiguracja polityki retry
+retry-policy:
+  # Maksymalna liczba ponownych prób dla błędów przejściowych
+  max-retries: 3
+  # Początkowe opóźnienie między próbami (w milisekundach)
+  initial-delay-ms: 1000
+  # Mnożnik dla exponential backoff (np. 2.0 oznacza podwojenie czasu czekania)
+  backoff-multiplier: 2.0
+
 embabel:
   agent:
     platform:
