@@ -7,7 +7,6 @@ import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.domain.io.UserInput;
 import com.example.spring_babel_rag.configuration.BlogWriteAgentProperties;
 import com.example.spring_babel_rag.configuration.Persons;
-import com.example.spring_babel_rag.model.BlogDraft;
 import com.example.spring_babel_rag.model.ReviewedPost;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -30,20 +29,9 @@ public class BlogWriterAgent {
         this.properties = properties;
     }
 
-    @Action(description = "Translate question for English")
-    public String translateQuestion(UserInput userInput, Ai ai) {
-        return ai
-                .withLlmByRole("translator")
-                .withId("tłumacz-pytania-na-angielski")
-                .withPromptContributor(Persons.TRANSLATOR).creating(String.class)
-                .fromPrompt("""
-                        Question: %s
-                        """.formatted(userInput.getContent()));
-    }
-
     @Action(description = "Write a blog post draft based on the user input topic")
-    public BlogDraft writeBlogDraft(String translateUserInput, Ai ai) {
-        String markdown = ai
+    public String writeBlogDraft(UserInput userInput, Ai ai) {
+        return ai
                 .withDefaultLlm()
                 .withId("szkicownik-wpisów-bloga")
                 .withPromptContributor(Persons.DEVELOPER)
@@ -53,14 +41,12 @@ public class BlogWriterAgent {
 
                         Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                         The first line must be a single H1 heading in the form: # <title>
-                        """.formatted(translateUserInput));
-
-        String title = extractTitleFromMarkdown(markdown, translateUserInput);
-        return new BlogDraft(title, markdown);
+                        Text prepare in polish language.
+                        """.formatted(userInput.getContent()));
     }
 
     @Action(description = "Check and correct the blog post. Fix any technical errors and tighten the writing.")
-    public ReviewedPost reviewAndImproveBlogDraft(BlogDraft draft, Ai ai) {
+    public ReviewedPost reviewAndImproveBlogDraft(String draft, Ai ai) {
         String reviewedMarkdown = ai
                 .withLlmByRole("reviewer")
                 .withPromptContributor(Persons.REVIEWER)
@@ -70,27 +56,27 @@ public class BlogWriterAgent {
                         Review and improve the following blog post.
                         Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                         Keep the first line as a single H1 heading in the form: # <title>
-                        In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (e.g., Wikipedia) providing an explanation of the term.
+                        In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation and if you find nothing add Wikipedia) providing an explanation of the term.
 
-                        Title: %s
                         Content: %s
-                        """.formatted(draft.title(), draft.content()));
+                        """.formatted(draft));
 
-        String title = extractTitleFromMarkdown(reviewedMarkdown, draft.title());
-        String feedback = buildShortFeedback(draft.content(), reviewedMarkdown);
+        String title = extractTitleFromMarkdown(reviewedMarkdown, "");
+        String feedback = buildShortFeedback(draft, reviewedMarkdown);
+        log.debug("reviewAndImproveBlogDraft: title: "+title + ", feedback:" + feedback);
         return new ReviewedPost(title, reviewedMarkdown, feedback);
     }
 
-    @AchievesGoal(description = "blog post is translated on polish language")
-    @Action(description = "Translate the blog post on polish language")
-    public ReviewedPost translateOnPolishReviewedBlogPost(ReviewedPost reviewedPost, Ai ai) {
-        String translatedMarkdown = ai
-                .withLlmByRole("translator")
-                .withPromptContributors(List.of(Persons.TRANSLATOR, Persons.EDITOR_PL))
-                .withId("tłumacz-szkiców-bloga-na-polski")
+    @AchievesGoal(description = "blog post is edited and corrected")
+    @Action(description = "Correct and edit polish blog post, making sure it is linguistically accurate and polished for publication.")
+    public ReviewedPost editReviewedBlogPost(ReviewedPost reviewedPost, Ai ai) {
+        String editedMarkdown = ai
+                .withLlmByRole("editor")
+                .withPromptContributors(List.of(Persons.EDITOR_PL))
+                .withId("redaktor-szkiców-bloga")
                 .creating(String.class)
                 .fromPrompt("""
-                        Translate the following blog post to Polish.
+                        Correct and polish blog post.
                         Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                         Keep the first line as a single H1 heading in the form: # <title>
 
@@ -98,12 +84,18 @@ public class BlogWriterAgent {
                         Content: %s
                         """.formatted(reviewedPost.title(), reviewedPost.content()));
 
-        String title = extractTitleFromMarkdown(translatedMarkdown, reviewedPost.title());
-        ReviewedPost translatedBlogPost = new ReviewedPost(title, translatedMarkdown, reviewedPost.feedback());
+        String title = extractTitleFromMarkdown(editedMarkdown, reviewedPost.title());
+        ReviewedPost translatedBlogPost = new ReviewedPost(title, editedMarkdown, reviewedPost.feedback());
         writeToFile(translatedBlogPost);
         return translatedBlogPost;
     }
 
+    /**
+     * Znajduje tytuł w pierwszej linii markdowna, który powinien być w formacie H1. Jeśli nie znajdzie, używa fallbacku (np. pytania) jako tytułu.
+     * @param markdown - tekst zawierający cały szkic wpisu, z którego należy wyciągnąć tytuł. Tytuł powinien być zawarty w pierwszej linii
+     * @param fallback - uwagi agenta do tytułu
+     * @return - tytuł wpisu, który będzie użyty do nazwania pliku. Powinien być krótki i zwięzły, najlepiej do 5 słów.
+     */
     private String extractTitleFromMarkdown(String markdown, String fallback) {
         Matcher matcher = FIRST_H1_PATTERN.matcher(markdown);
         if (matcher.find()) {
@@ -117,15 +109,15 @@ public class BlogWriterAgent {
         int delta = reviewedMarkdown.length() - originalMarkdown.length();
 
         if (!hasH1) {
-            return "Korekta wykonana; dodaj naglowek H1 na poczatku.";
+            return "Korekta wykonana; dodaj nagłówek H1 na początku.";
         }
         if (delta < -80) {
-            return "Korekta wykonana; tresc zostala skrocona i uproszczona.";
+            return "Korekta wykonana; treść została skrócona i uproszczona.";
         }
         if (delta > 80) {
             return "Korekta wykonana; dodano doprecyzowania techniczne.";
         }
-        return "Korekta wykonana; jezyk i technikalia poprawione.";
+        return "Korekta wykonana; język i technikalia poprawione.";
     }
 
     private void writeToFile(ReviewedPost post) {
