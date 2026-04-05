@@ -6,6 +6,7 @@ import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.domain.io.UserInput;
 import com.example.spring_babel_rag.configuration.BlogWriteAgentProperties;
+import com.example.spring_babel_rag.configuration.Persons;
 import com.example.spring_babel_rag.model.BlogDraft;
 import com.example.spring_babel_rag.model.ReviewedPost;
 import org.apache.commons.logging.Log;
@@ -14,11 +15,15 @@ import org.apache.commons.logging.LogFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Agent(description = "Agent piszący wpisy do bloga na dany temat")
 public class BlogWriterAgent {
 
     private static final Log log = LogFactory.getLog(BlogWriterAgent.class);
+    private static final Pattern FIRST_H1_PATTERN = Pattern.compile("(?m)^#\\s+(.+?)\\s*$");
     private final BlogWriteAgentProperties properties;
 
     public BlogWriterAgent(BlogWriteAgentProperties properties) {
@@ -38,52 +43,89 @@ public class BlogWriterAgent {
 
     @Action(description = "Write a blog post draft based on the user input topic")
     public BlogDraft writeBlogDraft(String translateUserInput, Ai ai) {
-        return ai
+        String markdown = ai
                 .withDefaultLlm()
                 .withId("szkicownik-wpisów-bloga")
                 .withPromptContributor(Persons.DEVELOPER)
-                .creating(BlogDraft.class)
+                .creating(String.class)
                 .fromPrompt("""
                         Write a blog post about: %s
-                        
-                        Keep it practical and beginner friendly.
-                        Use short sentences and plain language.
-                        Include code examples but keep them short and simple.
-                        Write the content in Markdown.
+
+                        Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                        The first line must be a single H1 heading in the form: # <title>
                         """.formatted(translateUserInput));
+
+        String title = extractTitleFromMarkdown(markdown, translateUserInput);
+        return new BlogDraft(title, markdown);
     }
 
     @Action(description = "Check and correct the blog post. Fix any technical errors and tighten the writing.")
     public ReviewedPost reviewAndImproveBlogDraft(BlogDraft draft, Ai ai) {
-        return ai
+        String reviewedMarkdown = ai
                 .withLlmByRole("reviewer")
                 .withPromptContributor(Persons.REVIEWER)
                 .withId("recenzent-szkiców-bloga")
-                .creating(ReviewedPost.class)
-                .fromPrompt("""                      
+                .creating(String.class)
+                .fromPrompt("""
+                        Review and improve the following blog post.
+                        Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                        Keep the first line as a single H1 heading in the form: # <title>
+                        In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (e.g., Wikipedia) providing an explanation of the term.
+
                         Title: %s
                         Content: %s
-                        
-                        Fix any technical errors. Tighten the writing.
-                        Provide the revised title, revised content, and a brief
-                        summary of the changes you made as feedback.
                         """.formatted(draft.title(), draft.content()));
+
+        String title = extractTitleFromMarkdown(reviewedMarkdown, draft.title());
+        String feedback = buildShortFeedback(draft.content(), reviewedMarkdown);
+        return new ReviewedPost(title, reviewedMarkdown, feedback);
     }
 
     @AchievesGoal(description = "blog post is translated on polish language")
     @Action(description = "Translate the blog post on polish language")
     public ReviewedPost translateOnPolishReviewedBlogPost(ReviewedPost reviewedPost, Ai ai) {
-        ReviewedPost TranslatedBlogPost = ai
+        String translatedMarkdown = ai
                 .withLlmByRole("translator")
-                .withPromptContributor(Persons.TRANSLATOR)
+                .withPromptContributors(List.of(Persons.TRANSLATOR, Persons.EDITOR_PL))
                 .withId("tłumacz-szkiców-bloga-na-polski")
-                .creating(ReviewedPost.class)
+                .creating(String.class)
                 .fromPrompt("""
+                        Translate the following blog post to Polish.
+                        Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                        Keep the first line as a single H1 heading in the form: # <title>
+
                         Title: %s
                         Content: %s
                         """.formatted(reviewedPost.title(), reviewedPost.content()));
-        writeToFile(TranslatedBlogPost);
-        return TranslatedBlogPost;
+
+        String title = extractTitleFromMarkdown(translatedMarkdown, reviewedPost.title());
+        ReviewedPost translatedBlogPost = new ReviewedPost(title, translatedMarkdown, reviewedPost.feedback());
+        writeToFile(translatedBlogPost);
+        return translatedBlogPost;
+    }
+
+    private String extractTitleFromMarkdown(String markdown, String fallback) {
+        Matcher matcher = FIRST_H1_PATTERN.matcher(markdown);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return fallback.replaceFirst("(?i)^question:\\s*", "").trim();
+    }
+
+    private String buildShortFeedback(String originalMarkdown, String reviewedMarkdown) {
+        boolean hasH1 = FIRST_H1_PATTERN.matcher(reviewedMarkdown).find();
+        int delta = reviewedMarkdown.length() - originalMarkdown.length();
+
+        if (!hasH1) {
+            return "Korekta wykonana; dodaj naglowek H1 na poczatku.";
+        }
+        if (delta < -80) {
+            return "Korekta wykonana; tresc zostala skrocona i uproszczona.";
+        }
+        if (delta > 80) {
+            return "Korekta wykonana; dodano doprecyzowania techniczne.";
+        }
+        return "Korekta wykonana; jezyk i technikalia poprawione.";
     }
 
     private void writeToFile(ReviewedPost post) {
