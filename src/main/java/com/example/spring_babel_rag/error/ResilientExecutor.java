@@ -64,6 +64,7 @@ public class ResilientExecutor {
             }
         }
 
+        assert lastException != null;
         throw lastException;
     }
 

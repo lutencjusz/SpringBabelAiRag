@@ -1,13 +1,13 @@
 package com.example.spring_babel_rag.error;
 
 /**
- * Handler dla błędów formatu z wbudowanym fallback-iem.
- * Próbuje naprawić błędy JSON/parsowania za pomocą fallback prompta lub fallback parsera.
+ * Handler dla błędów formatu ze wbudowanym fallback-iem.
+ * Próbuje naprawić błędy JSON/parsowania za pomocą fallback prompt-a lub fallback parsera.
  */
 public class FormatErrorHandler {
 
     private static final String FALLBACK_PROMPT = """
-            Odpowiedź powinna być **czystym Markdownem** bez żadnych opakowań JSON, kodów, ani znków formatujących.
+            Odpowiedź powinna być **czystym Markdownem** bez żadnych opakowań JSON, kodów, ani znaków formatujących.
             
             WYMAGANE:
             - Pierwsza linia MUSI być nagłówkiem H1: # <tytuł>
@@ -18,10 +18,10 @@ public class FormatErrorHandler {
             """;
 
     /**
-     * Sprawdza, czy błąd jest błędem formatu (JSON, parsing).
+     * sprawdza, czy błąd jest błędem formatu (JSON, parsing).
      *
      * @param throwable wyjątek do sprawdzenia
-     * @return true jeśli błąd jest błędem formatu
+     * @return true, jeśli błąd jest błędem formatu
      */
     public static boolean isFormatError(Throwable throwable) {
         if (throwable == null) {
@@ -43,10 +43,10 @@ public class FormatErrorHandler {
     }
 
     /**
-     * Ekstrakcji surowy Markdown z zaśmieconego outputu (usuwa JSON wrappery, backticky, itp).
+     * Ekstrakcji surowy Markdown z zaśmieconego output (usuwa JSON wrapper, backtick's itp.).
      *
      * @param content zanieczyszczony tekst
-     * @return czysty Markdown lub oryginalny tekst jeśli nie da się wyciągnąć
+     * @return czysty Markdown lub oryginalny tekst. jeśli nie da się wyciągnąć
      */
     public static String extractCleanMarkdown(String content) {
         if (content == null || content.isBlank()) {
@@ -94,7 +94,7 @@ public class FormatErrorHandler {
      * @return wyciągnięty tekst lub null
      */
     private static String extractFromJsonObject(String jsonContent) {
-        // Szukaj pól: "content", "markdown", "text", "response", "output"
+        // szukaj pól: "content", "markdown", "text", "response", "output"
         String[] fieldNames = {"content", "markdown", "text", "response", "output", "body"};
 
         for (String field : fieldNames) {
@@ -128,7 +128,7 @@ public class FormatErrorHandler {
      * Waliduje czy Markdown ma prawidłową strukturę (zawiera H1 heading).
      *
      * @param markdown tekst do walidacji
-     * @return true jeśli ma prawidłową strukturę
+     * @return true, jeśli ma prawidłową strukturę
      */
     public static boolean isValidMarkdownStructure(String markdown) {
         if (markdown == null || markdown.isBlank()) {
@@ -143,18 +143,18 @@ public class FormatErrorHandler {
     }
 
     /**
-     * Próbuje naprawić Markdown dodając fallback nagłówek H1 jeśli go brakuje.
+     * Próbuje naprawić Markdown dodając fallback nagłówek H1, jeśli go brakuje.
      *
      * @param markdown tekst do naprawy
      * @param fallbackTitle tytuł fallback (jeśli brakuje H1)
-     * @return naprawiony Markdown lub oryginalny jeśli już jest OK
+     * @return naprawiony Markdown lub oryginalny, jeśli już jest OK
      */
     public static String repairMarkdownWithFallbackTitle(String markdown, String fallbackTitle) {
         if (markdown == null || markdown.isBlank()) {
             return "# " + (fallbackTitle != null ? fallbackTitle : "Untitled") + "\n\nBrak treści.";
         }
 
-        // Sprawdź czy ma H1
+        // Sprawdź, czy ma H1
         if (isValidMarkdownStructure(markdown)) {
             return markdown;
         }
