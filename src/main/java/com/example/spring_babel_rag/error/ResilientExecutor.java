@@ -44,7 +44,7 @@ public class ResilientExecutor {
             } catch (Exception e) {
                 lastException = e;
 
-                // Sprawdź czy błąd jest przejściowy
+                // Sprawdź, czy błąd jest przejściowy
                 if (!retryPolicy.isRetryableError(e)) {
                     log.warn(description + " - błąd permanentny (bez retry): " + e.getMessage());
                     throw e;
@@ -69,7 +69,7 @@ public class ResilientExecutor {
     }
 
     /**
-     * Wykonuje funkcję z retry i fallback handlerami dla błędów formatu.
+     * Wykonuje funkcję z retry i fallback handler-ami dla błędów formatu.
      *
      * @param <T> typ wyniku
      * @param function funkcja główna

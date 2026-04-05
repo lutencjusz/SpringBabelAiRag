@@ -77,7 +77,7 @@ public class BlogWriterAgent {
                                     Content: %s
                                     """.formatted(draft)),
 
-                    // Fallback funkcja (z wzmocnionym promptem)
+                    // Fallback funkcja (ze wzmocnionym prompt-em)
                     () -> ai
                             .withLlmByRole("reviewer")
                             .withPromptContributor(Persons.REVIEWER)
@@ -93,7 +93,7 @@ public class BlogWriterAgent {
 
                     "Recenzja i poprawa szkicu wpisu");
 
-            // Wyczyść format jeśli potrzeba
+            // Wyczyść format, jeśli potrzeba
             reviewedMarkdown = FormatErrorHandler.extractCleanMarkdown(reviewedMarkdown);
 
             String title = extractTitleFromMarkdown(reviewedMarkdown, "");
@@ -128,7 +128,7 @@ public class BlogWriterAgent {
                                     Content: %s
                                     """.formatted(reviewedPost.title(), reviewedPost.content())),
 
-                    // Fallback funkcja (z wzmocnionym promptem)
+                    // Fallback funkcja (ze wzmocnionym promptem)
                     () -> ai
                             .withLlmByRole("editor")
                             .withPromptContributors(List.of(Persons.EDITOR_PL))
@@ -144,7 +144,7 @@ public class BlogWriterAgent {
 
                     "Edycja i poprawa redakcyjna wpisu");
 
-            // Wyczyść format jeśli potrzeba
+            // Wyczyść format, jeśli potrzeba
             editedMarkdown = FormatErrorHandler.extractCleanMarkdown(editedMarkdown);
 
             String title = extractTitleFromMarkdown(editedMarkdown, reviewedPost.title());
