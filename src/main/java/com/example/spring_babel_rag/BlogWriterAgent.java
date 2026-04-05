@@ -72,7 +72,7 @@ public class BlogWriterAgent {
                                     Review and improve the following blog post.
                                     Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                                     Keep the first line as a single H1 heading in the form: # <title>
-                                    In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation and if you find nothing add Wikipedia) providing an explanation of the term.
+                                    In the event of difficult technical terminology, replace the first instance of each term with a verified link to a reference site (owner documentation and if you find nothing add Wikipedia) providing an explanation of the term.
 
                                     Content: %s
                                     """.formatted(draft)),
@@ -120,7 +120,7 @@ public class BlogWriterAgent {
                             .withId("redaktor-szkiców-bloga")
                             .creating(String.class)
                             .fromPrompt("""
-                                    Correct and polish blog post.
+                                    Correct and polish blog post and text diagrams.
                                     Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                                     Keep the first line as a single H1 heading in the form: # <title>
 
