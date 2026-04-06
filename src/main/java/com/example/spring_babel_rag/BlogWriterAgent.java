@@ -120,7 +120,7 @@ public class BlogWriterAgent {
             String linkedProse = resilientExecutor.executeWithRetryAndFormatFallback(
                     // Główna funkcja
                     () -> ai
-                            .withLlmByRole("reviewer")
+                            .withLlmByRole("linker")
                             .withPromptContributor(Persons.REVIEWER)
                             .withId("linker-szkiców-bloga")
                             .creating(String.class)
