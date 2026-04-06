@@ -39,10 +39,22 @@ public class RetryPolicy {
             return false;
         }
 
+        // InterruptedException - ZAWSZE permanentne; przywróć status przerwania wątku
+        if (throwable instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+
         String message = throwable.getMessage() != null ? throwable.getMessage().toLowerCase() : "";
         String className = throwable.getClass().getSimpleName();
 
-        // Błędy przejściowe - można retry
+        // Embabel wewnętrznie wyczerpał własne próby (timeout po X ms lub przerwanie call) - NIE retry na naszym poziomie
+        // Format Embabel: "LLM call for interaction X timed out after 60000ms" / "was interrupted"
+        if (message.contains("timed out after") || message.contains("was interrupted")) {
+            return false;
+        }
+
+        // Błędy przejściowe - można retry (sieciowe, rate-limit, 5xx)
         if (className.contains("TimeoutException") ||
             className.contains("SocketTimeoutException") ||
             message.contains("timeout") ||

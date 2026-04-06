@@ -3,17 +3,24 @@ spring:
     name: spring-babel-rag
   config:
     import: optional:file:.env[.properties]
+  # Timeout dla wychodzących zapytań HTTP (Spring Boot 3.2+)
+  # Zwiększony do 3 minut dla długich odpowiedzi LLM (Linker, Reviewer)
+  http:
+    client:
+      read-timeout: 3m
+      connect-timeout: 10s
 
 blog-write-agent:
   outputDir: blog-posts
 
-# Konfiguracja polityki retry
+# Konfiguracja polityki retry (nasz ResilientExecutor)
 retry-policy:
-  # Maksymalna liczba ponownych prób dla błędów przejściowych
-  max-retries: 3
+  # Maksymalna liczba ponownych prób dla błędów przejściowych (np. sieciowych)
+  # UWAGA: Embabel ma własny retry (do 10x) - nasz jest ostatnią linią obrony
+  max-retries: 2
   # Początkowe opóźnienie między próbami (w milisekundach)
-  initial-delay-ms: 1000
-  # Mnożnik dla exponential backoff (np. 2.0 oznacza podwojenie czasu czekania)
+  initial-delay-ms: 2000
+  # Mnożnik dla exponential backoff
   backoff-multiplier: 2.0
 
 embabel:
@@ -23,7 +30,10 @@ embabel:
         openai:
           api-key: ${OPENAI_API_KEY}
       toolloop:
-        max-iteration: 8
+        max-iteration: 3
+        # Timeout dla wywołań LLM w ms (domyślnie 60000ms = 60s).
+        # Linker/Reviewer na długich postach potrzebuje ~70s - ustawiamy margines.
+        timeout: 120000
   models:
     default-llm: gpt-5-mini
     llms:

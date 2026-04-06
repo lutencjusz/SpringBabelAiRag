@@ -112,8 +112,12 @@ public class BlogWriterAgent {
     @Action(description = "Link and verify linked difficult technical terminology")
     public LinkedPost LinkerBlogDraft(ReviewedPost reviewedPost, Ai ai) {
         try {
-            // Prompt główny
-            String linkedBlogDraft = resilientExecutor.executeWithRetryAndFormatFallback(
+            // Wyciągnij bloki kodu - nie wymagają linkowania terminów i są bardzo kosztowne tokenowo
+            List<String> extractedCodeBlocks = new java.util.ArrayList<>();
+            String proseContent = extractCodeBlocks(reviewedPost.content(), extractedCodeBlocks);
+
+            // Prompt główny - operuje TYLKO na tekście bez bloków kodu
+            String linkedProse = resilientExecutor.executeWithRetryAndFormatFallback(
                     // Główna funkcja
                     () -> ai
                             .withLlmByRole("reviewer")
@@ -121,12 +125,14 @@ public class BlogWriterAgent {
                             .withId("linker-szkiców-bloga")
                             .creating(String.class)
                             .fromPrompt("""
-                                    In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation and if you find nothing add Wikipedia) providing an explanation of the term.
+                                    In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation, or Wikipedia if nothing else found).
+                                    Identify AT MOST 8 of the most important technical terms for linking.
+                                    Do NOT add links inside code blocks or backtick spans.
                                     Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                                     Keep the first line as a single H1 heading in the form: # <title>
                                     
                                     Content: %s
-                                    """.formatted(reviewedPost.content())),
+                                    """.formatted(proseContent)),
 
                     // Fallback funkcja (ze wzmocnionym prompt-em)
                     () -> ai
@@ -135,14 +141,17 @@ public class BlogWriterAgent {
                             .withId("linker-szkiców-bloga-fallback")
                             .creating(String.class)
                             .fromPrompt("""
-                                    Review and improve the following blog post.
+                                    Nie zmieniaj problematycznych linków. Zwróć prawidłowy markdown.
                                     %s
                                     
-                                    Tekst do recenzji:
+                                    Tekst do recenzji (bez bloków kodu):
                                     %s
-                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), reviewedPost.content())),
+                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), proseContent)),
 
                     "Dodanie linków i ich weryfikacja");
+
+            // Przywróć bloki kodu do wynikowego markdown
+            String linkedBlogDraft = restoreCodeBlocks(linkedProse, extractedCodeBlocks);
 
             String feedback = buildShortFeedback(reviewedPost.content(), linkedBlogDraft);
             return new LinkedPost(reviewedPost.title(), linkedBlogDraft, feedback);
@@ -151,6 +160,45 @@ public class BlogWriterAgent {
             log.error("Błąd przy recenzji wpisu: " + e.getMessage(), e);
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Wyciąga bloki kodu z Markdown i zastępuje je placeholderami {{CODE_BLOCK_N}}.
+     * Zmniejsza ilość tokenów wysyłanych do LLM (bloki kodu nie wymagają linkowania terminów).
+     *
+     * @param markdown     pełny tekst Markdown
+     * @param codeBlocks   lista do wypełnienia wyciągniętymi blokami kodu
+     * @return tekst Markdown z placeholderami zamiast bloków kodu
+     */
+    private String extractCodeBlocks(String markdown, List<String> codeBlocks) {
+        Pattern codeBlockPattern = Pattern.compile("(?s)```[^\\n]*\\n.*?```");
+        java.util.regex.Matcher matcher = codeBlockPattern.matcher(markdown);
+        StringBuilder result = new StringBuilder();
+        int lastEnd = 0;
+        int blockIndex = 0;
+        while (matcher.find()) {
+            result.append(markdown, lastEnd, matcher.start());
+            result.append("{{CODE_BLOCK_").append(blockIndex).append("}}");
+            codeBlocks.add(matcher.group());
+            blockIndex++;
+            lastEnd = matcher.end();
+        }
+        result.append(markdown.substring(lastEnd));
+        return result.toString();
+    }
+
+    /**
+     * Przywraca bloki kodu do tekstu Markdown w miejsce placeholderów {{CODE_BLOCK_N}}.
+     *
+     * @param content    tekst Markdown z placeholderami
+     * @param codeBlocks lista oryginalnych bloków kodu do przywrócenia
+     * @return tekst Markdown z przywróconymi blokami kodu
+     */
+    private String restoreCodeBlocks(String content, List<String> codeBlocks) {
+        for (int i = 0; i < codeBlocks.size(); i++) {
+            content = content.replace("{{CODE_BLOCK_" + i + "}}", codeBlocks.get(i));
+        }
+        return content;
     }
 
     @Action(description = "Correct and edit polish blog post, making sure it is linguistically accurate and polished for publication.")

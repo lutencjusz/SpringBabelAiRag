@@ -60,7 +60,21 @@ public class ResilientExecutor {
                 long delayMs = retryPolicy.getDelayForAttempt(attempts - 1);
                 log.warn(description + " - błąd przejściowy, retry za " + delayMs + "ms: " + e.getMessage());
 
-                Thread.sleep(delayMs);
+                // Sprawdź przerwanie wątku PRZED zaśnięciem
+                if (Thread.currentThread().isInterrupted()) {
+                    log.warn(description + " - wątek przerwany przed oczekiwaniem, przerywam retry");
+                    Thread.currentThread().interrupt();
+                    throw new InterruptedException("Wątek przerwany przed oczekiwaniem na retry");
+                }
+
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    // Przywróć status przerwania i wyjdź natychmiast - nie kontynuuj retry
+                    Thread.currentThread().interrupt();
+                    log.warn(description + " - wątek przerwany podczas oczekiwania między próbami");
+                    throw ie;
+                }
             }
         }
 
