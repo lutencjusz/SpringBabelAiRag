@@ -29,6 +29,8 @@ embabel:
       models:
         openai:
           api-key: ${OPENAI_API_KEY}
+        anthropic:
+          api-key: ${ANTHROPIC_API_KEY}
       toolloop:
         max-iteration: 3
         # Timeout dla wywołań LLM w ms (domyślnie 60000ms = 60s).
@@ -37,6 +39,7 @@ embabel:
   models:
     default-llm: gpt-5-mini
     llms:
+      writer: claude-haiku-4-5
       editor: gpt-4o
       reviewer: gpt-5-mini
       md_expert: gpt-4o

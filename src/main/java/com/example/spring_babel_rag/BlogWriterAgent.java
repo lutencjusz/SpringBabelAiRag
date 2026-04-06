@@ -42,7 +42,7 @@ public class BlogWriterAgent {
     public String writeBlogDraft(UserInput userInput, Ai ai) {
         try {
             return resilientExecutor.executeWithRetry(() -> ai
-                            .withDefaultLlm()
+                            .withLlmByRole("writer")
                             .withId("szkicownik-wpisów-bloga")
                             .withPromptContributor(Persons.DEVELOPER)
                             .creating(String.class)
