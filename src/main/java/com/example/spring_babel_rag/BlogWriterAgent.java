@@ -9,6 +9,9 @@ import com.example.spring_babel_rag.configuration.BlogWriteAgentProperties;
 import com.example.spring_babel_rag.configuration.Persons;
 import com.example.spring_babel_rag.error.FormatErrorHandler;
 import com.example.spring_babel_rag.error.ResilientExecutor;
+import com.example.spring_babel_rag.model.EditedPost;
+import com.example.spring_babel_rag.model.LinkedPost;
+import com.example.spring_babel_rag.model.MarkdownPost;
 import com.example.spring_babel_rag.model.ReviewedPost;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -39,17 +42,17 @@ public class BlogWriterAgent {
     public String writeBlogDraft(UserInput userInput, Ai ai) {
         try {
             return resilientExecutor.executeWithRetry(() -> ai
-                    .withDefaultLlm()
-                    .withId("szkicownik-wpisów-bloga")
-                    .withPromptContributor(Persons.DEVELOPER)
-                    .creating(String.class)
-                    .fromPrompt("""
-                            Write a blog post about: %s
-
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            The first line must be a single H1 heading in the form: # <title>
-                            Text prepare in polish language.
-                            """.formatted(userInput.getContent())),
+                            .withDefaultLlm()
+                            .withId("szkicownik-wpisów-bloga")
+                            .withPromptContributor(Persons.DEVELOPER)
+                            .creating(String.class)
+                            .fromPrompt("""
+                                    Write a blog post about: %s
+                                    
+                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                                    The first line must be a single H1 heading in the form: # <title>
+                                    Text prepare in polish language.
+                                    """.formatted(userInput.getContent())),
                     "Generowanie szkicu wpisu bloga");
         } catch (Exception e) {
             log.error("Błąd przy generowaniu szkicu wpisu: " + e.getMessage(), e);
@@ -72,8 +75,7 @@ public class BlogWriterAgent {
                                     Review and improve the following blog post.
                                     Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                                     Keep the first line as a single H1 heading in the form: # <title>
-                                    In the event of difficult technical terminology, replace the first instance of each term with a verified link to a reference site (owner documentation and if you find nothing add Wikipedia) providing an explanation of the term.
-
+                                    
                                     Content: %s
                                     """.formatted(draft)),
 
@@ -107,9 +109,52 @@ public class BlogWriterAgent {
         }
     }
 
-    @AchievesGoal(description = "blog post is edited and corrected")
+    @Action(description = "Link and verify linked difficult technical terminology")
+    public LinkedPost LinkerBlogDraft(ReviewedPost reviewedPost, Ai ai) {
+        try {
+            // Prompt główny
+            String linkedBlogDraft = resilientExecutor.executeWithRetryAndFormatFallback(
+                    // Główna funkcja
+                    () -> ai
+                            .withLlmByRole("reviewer")
+                            .withPromptContributor(Persons.REVIEWER)
+                            .withId("linker-szkiców-bloga")
+                            .creating(String.class)
+                            .fromPrompt("""
+                                    In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation and if you find nothing add Wikipedia) providing an explanation of the term.
+                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                                    Keep the first line as a single H1 heading in the form: # <title>
+                                    
+                                    Content: %s
+                                    """.formatted(reviewedPost.content())),
+
+                    // Fallback funkcja (ze wzmocnionym prompt-em)
+                    () -> ai
+                            .withLlmByRole("reviewer")
+                            .withPromptContributor(Persons.REVIEWER)
+                            .withId("linker-szkiców-bloga-fallback")
+                            .creating(String.class)
+                            .fromPrompt("""
+                                    Review and improve the following blog post.
+                                    %s
+                                    
+                                    Tekst do recenzji:
+                                    %s
+                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), reviewedPost.content())),
+
+                    "Dodanie linków i ich weryfikacja");
+
+            String feedback = buildShortFeedback(reviewedPost.content(), linkedBlogDraft);
+            return new LinkedPost(reviewedPost.title(), linkedBlogDraft, feedback);
+
+        } catch (Exception e) {
+            log.error("Błąd przy recenzji wpisu: " + e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
     @Action(description = "Correct and edit polish blog post, making sure it is linguistically accurate and polished for publication.")
-    public ReviewedPost editReviewedBlogPost(ReviewedPost reviewedPost, Ai ai) {
+    public EditedPost editReviewedBlogPost(LinkedPost linkedPost, Ai ai) {
         try {
             // Prompt główny
             String editedMarkdown = resilientExecutor.executeWithRetryAndFormatFallback(
@@ -123,10 +168,10 @@ public class BlogWriterAgent {
                                     Correct and polish blog post and text diagrams.
                                     Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
                                     Keep the first line as a single H1 heading in the form: # <title>
-
+                                    
                                     Title: %s
                                     Content: %s
-                                    """.formatted(reviewedPost.title(), reviewedPost.content())),
+                                    """.formatted(linkedPost.title(), linkedPost.content())),
 
                     // Fallback funkcja (ze wzmocnionym promptem)
                     () -> ai
@@ -140,18 +185,63 @@ public class BlogWriterAgent {
                                     
                                     Tytuł: %s
                                     Treść: %s
-                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), reviewedPost.title(), reviewedPost.content())),
+                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), linkedPost.title(), linkedPost.content())),
 
                     "Edycja i poprawa redakcyjna wpisu");
 
             // Wyczyść format, jeśli potrzeba
             editedMarkdown = FormatErrorHandler.extractCleanMarkdown(editedMarkdown);
 
-            String title = extractTitleFromMarkdown(editedMarkdown, reviewedPost.title());
-            ReviewedPost translatedBlogPost = new ReviewedPost(title, editedMarkdown, reviewedPost.feedback());
+            String feedback = buildShortFeedback(linkedPost.content(), editedMarkdown);
+            String title = extractTitleFromMarkdown(editedMarkdown, linkedPost.title());
+            return new EditedPost(title, editedMarkdown, feedback);
+
+        } catch (Exception e) {
+            log.error("Błąd przy edycji wpisu: " + e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    @AchievesGoal(description = "blog post is attractive Markdown file and is ready for publication")
+    @Action(description = "Make your Markdown output file more attractive by adding embellishments, design structures, and more engaging formatting. Use Markdown features like blockquotes, lists, bold/italic text, emojis, and more to enhance readability and visual appeal. Ensure the content remains clear and informative while making it more enjoyable to read.")
+    public MarkdownPost makeAttractiveReviewedBlogPost(EditedPost reviewedPost, Ai ai) {
+        try {
+            // Prompt główny
+            String markdown = resilientExecutor.executeWithRetryAndFormatFallback(
+                    // Główna funkcja
+                    () -> ai
+                            .withLlmByRole("md_expert")
+                            .withPromptContributors(List.of(Persons.MARKDOWN_EXPERT))
+                            .withId("ekspert-markdown")
+                            .creating(String.class)
+                            .fromPrompt("""
+                                    Make markdown file more attractive and easy to read.
+                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                                    Keep the first line as a single H1 heading in the form: # <title>
+                                    
+                                    Title: %s
+                                    Content: %s
+                                    """.formatted(reviewedPost.title(), reviewedPost.content())),
+
+                    // Fallback funkcja (ze wzmocnionym promptem)
+                    () -> ai
+                            .withLlmByRole("md_expert")
+                            .withPromptContributors(List.of(Persons.MARKDOWN_EXPERT))
+                            .withId("ekspert-markdown")
+                            .creating(String.class)
+                            .fromPrompt("""
+                                    Correct markdown file
+                                    %s
+                                    
+                                    Tytuł: %s
+                                    Treść: %s
+                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), reviewedPost.title(), reviewedPost.content())),
+
+                    "Edycja i poprawa pliku Markdown");
+
+            MarkdownPost translatedBlogPost = new MarkdownPost(reviewedPost.title(), markdown, reviewedPost.feedback());
             writeToFile(translatedBlogPost);
             return translatedBlogPost;
-
         } catch (Exception e) {
             log.error("Błąd przy edycji wpisu: " + e.getMessage(), e);
             throw new RuntimeException(e);
@@ -160,6 +250,7 @@ public class BlogWriterAgent {
 
     /**
      * Znajduje tytuł w pierwszej linii markdowna, który powinien być w formacie H1. Jeśli nie znajdzie, używa fallbacku (np. pytania) jako tytułu.
+     *
      * @param markdown - tekst zawierający cały szkic wpisu, z którego należy wyciągnąć tytuł. Tytuł powinien być zawarty w pierwszej linii
      * @param fallback - uwagi agenta do tytułu
      * @return - tytuł wpisu, który będzie użyty do nazwania pliku. Powinien być krótki i zwięzły, najlepiej do 5 słów.
@@ -194,7 +285,7 @@ public class BlogWriterAgent {
         return "Korekta wykonana; język i technikalia poprawione.";
     }
 
-    private void writeToFile(ReviewedPost post) {
+    private void writeToFile(MarkdownPost post) {
         String filename = post.title()
                 .toLowerCase()
                 .replaceAll("[^a-z0-9]+", "-")

@@ -29,3 +29,4 @@ embabel:
     llms:
       editor: gpt-4o
       reviewer: gpt-5-mini
+      md_expert: gpt-4o
