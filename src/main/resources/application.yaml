@@ -32,15 +32,17 @@ embabel:
         anthropic:
           api-key: ${ANTHROPIC_API_KEY}
       toolloop:
-        max-iteration: 3
-        # Timeout dla wywołań LLM w ms (domyślnie 60000ms = 60s).
-        # Linker/Reviewer na długich postach potrzebuje ~70s - ustawiamy margines.
-        timeout: 120000
+        max-iterations: 3
+      llm-operations:
+        prompts:
+          # Globalny timeout pojedynczego wywołania LLM dla wszystkich agentów
+          default-timeout: 240s
   models:
     default-llm: gpt-5-mini
     llms:
-      writer: claude-haiku-4-5
-      editor: gpt-5-mini
-      reviewer: gpt-4o
-      linker: claude-haiku-4-5
-      md_expert: gpt-5-mini
+      developer: claude-sonnet-4-5
+      translator: gpt-4o-mini
+      editor_pl: gpt-4o
+      reviewer: claude-sonnet-4-5
+      linker: gpt-4o-mini
+      md_expert: claude-haiku-4-5

@@ -42,7 +42,7 @@ public class BlogWriterAgent {
     public String writeBlogDraft(UserInput userInput, Ai ai) {
         try {
             return resilientExecutor.executeWithRetry(() -> ai
-                            .withLlmByRole("writer")
+                            .withLlmByRole("developer")
                             .withId("szkicownik-wpisów-bloga")
                             .withPromptContributor(Persons.DEVELOPER)
                             .creating(String.class)
@@ -208,7 +208,7 @@ public class BlogWriterAgent {
             String editedMarkdown = resilientExecutor.executeWithRetryAndFormatFallback(
                     // Główna funkcja
                     () -> ai
-                            .withLlmByRole("editor")
+                            .withLlmByRole("editor_pl")
                             .withPromptContributors(List.of(Persons.EDITOR_PL))
                             .withId("redaktor-szkiców-bloga")
                             .creating(String.class)
