@@ -3,6 +3,9 @@ spring:
     name: spring-babel-rag
   config:
     import: optional:file:.env[.properties]
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
   # Timeout dla wychodzących zapytań HTTP (Spring Boot 3.2+)
   # Zwiększony do 3 minut dla długich odpowiedzi LLM (Linker, Reviewer)
   http:
@@ -31,6 +34,9 @@ embabel:
           api-key: ${OPENAI_API_KEY}
         anthropic:
           api-key: ${ANTHROPIC_API_KEY}
+        ollama:
+          # Odczyt modeli z /api/tags i rejestracja beanow typu ollamaModel-<model>
+          base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       toolloop:
         max-iterations: 3
       llm-operations:
@@ -44,5 +50,5 @@ embabel:
       translator: gpt-4o-mini
       editor_pl: gpt-4o
       reviewer: claude-sonnet-4-5
-      linker: gpt-4o-mini
-      md_expert: claude-haiku-4-5
+      linker: gemma4:e4b
+      md_expert: gemma4:e4b
