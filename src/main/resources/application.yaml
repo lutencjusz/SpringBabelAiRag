@@ -48,7 +48,7 @@ embabel:
     llms:
       developer: claude-sonnet-4-5
       translator: gpt-4o-mini
-      editor_pl: gpt-4o
+      editor_pl: gpt-5-mini
       reviewer: claude-sonnet-4-5
-      linker: gemma4:e4b
-      md_expert: gemma4:e4b
+      linker: gpt-4o-mini
+      md_expert: claude-haiku-4-5
