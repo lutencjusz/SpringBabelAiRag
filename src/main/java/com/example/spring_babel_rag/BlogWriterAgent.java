@@ -8,13 +8,11 @@ import com.embabel.agent.domain.io.UserInput;
 import com.example.spring_babel_rag.configuration.BlogWriteAgentProperties;
 import com.example.spring_babel_rag.configuration.Persons;
 import com.example.spring_babel_rag.error.FormatErrorHandler;
-import com.example.spring_babel_rag.error.ResilientExecutor;
-import com.example.spring_babel_rag.model.EditedPost;
-import com.example.spring_babel_rag.model.LinkedPost;
-import com.example.spring_babel_rag.model.MarkdownPost;
-import com.example.spring_babel_rag.model.ReviewedPost;
+import com.example.spring_babel_rag.model.*;
+import com.example.spring_babel_rag.service.AgentService;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -28,32 +26,69 @@ import java.util.regex.Pattern;
 @Component
 public class BlogWriterAgent {
 
+    @Autowired
+    private AgentService agentService;
+
     private static final Log log = LogFactory.getLog(BlogWriterAgent.class);
     private static final Pattern FIRST_H1_PATTERN = Pattern.compile("(?m)^#\\s+(.+?)\\s*$");
     private final BlogWriteAgentProperties properties;
-    private final ResilientExecutor resilientExecutor;
 
-    public BlogWriterAgent(BlogWriteAgentProperties properties, ResilientExecutor resilientExecutor) {
+    public BlogWriterAgent(BlogWriteAgentProperties properties, AgentService agentService) {
         this.properties = properties;
-        this.resilientExecutor = resilientExecutor;
+        this.agentService = agentService;
+    }
+
+    /**
+     * Wyciąga bloki kodu z Markdown i zastępuje je placeholderami {{CODE_BLOCK_N}}.
+     * Zmniejsza ilość tokenów wysyłanych do LLM (bloki kodu nie wymagają linkowania terminów).
+     *
+     * @param markdown   pełny tekst Markdown
+     * @param codeBlocks lista do wypełnienia wyciągniętymi blokami kodu
+     * @return tekst Markdown z placeholderami zamiast bloków kodu
+     */
+    private String extractCodeBlocks(String markdown, List<String> codeBlocks) {
+        Pattern codeBlockPattern = Pattern.compile("(?s)```[^\\n]*\\n.*?```");
+        java.util.regex.Matcher matcher = codeBlockPattern.matcher(markdown);
+        StringBuilder result = new StringBuilder();
+        int lastEnd = 0;
+        int blockIndex = 0;
+        while (matcher.find()) {
+            result.append(markdown, lastEnd, matcher.start());
+            result.append("{{CODE_BLOCK_").append(blockIndex).append("}}");
+            codeBlocks.add(matcher.group());
+            blockIndex++;
+            lastEnd = matcher.end();
+        }
+        result.append(markdown.substring(lastEnd));
+        return result.toString();
     }
 
     @Action(description = "Write a blog post draft based on the user input topic")
     public String writeBlogDraft(UserInput userInput, Ai ai) {
         try {
-            return resilientExecutor.executeWithRetry(() -> ai
-                            .withLlmByRole("developer")
-                            .withId("szkicownik-wpisów-bloga")
-                            .withPromptContributor(Persons.DEVELOPER)
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Write a blog post about: %s
-                                    
-                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                                    The first line must be a single H1 heading in the form: # <title>
-                                    Text prepare in polish language.
-                                    """.formatted(userInput.getContent())),
-                    "Generowanie szkicu wpisu bloga");
+            return agentService.sendPrompt(
+                    """
+                            Write a blog post about: %s
+                            
+                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                            The first line must be a single H1 heading in the form: # <title>
+                            Text prepare in polish language.
+                            """,
+                    """
+                            Write a blog post about: %s
+                            
+                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                            The first line must be a single H1 heading in the form: # <title>
+                            Text prepare in polish language.
+                            %s
+                            """,
+                    userInput.getContent(),
+                    "developer",
+                    Persons.DEVELOPER,
+                    "szkicownik-wpisów-bloga",
+                    "Generowanie szkicu wpisu bloga",
+                    AgentType.NATIVE,
+                    ai);
         } catch (Exception e) {
             log.error("Błąd przy generowaniu szkicu wpisu: " + e.getMessage(), e);
             throw new RuntimeException(e);
@@ -64,36 +99,28 @@ public class BlogWriterAgent {
     public ReviewedPost reviewAndImproveBlogDraft(String draft, Ai ai) {
         try {
             // Prompt główny
-            String reviewedMarkdown = resilientExecutor.executeWithRetryAndFormatFallback(
-                    // Główna funkcja
-                    () -> ai
-                            .withLlmByRole("reviewer")
-                            .withPromptContributor(Persons.REVIEWER)
-                            .withId("recenzent-szkiców-bloga")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Review and improve the following blog post.
-                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                                    Keep the first line as a single H1 heading in the form: # <title>
-                                    
-                                    Content: %s
-                                    """.formatted(draft)),
-
-                    // Fallback funkcja (ze wzmocnionym prompt-em)
-                    () -> ai
-                            .withLlmByRole("reviewer")
-                            .withPromptContributor(Persons.REVIEWER)
-                            .withId("recenzent-szkiców-bloga-fallback")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Review and improve the following blog post.
-                                    %s
-                                    
-                                    Tekst do recenzji:
-                                    %s
-                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), draft)),
-
-                    "Recenzja i poprawa szkicu wpisu");
+            String reviewedMarkdown = agentService.sendPrompt(
+                    """
+                            Review and improve the following blog post.
+                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                            Keep the first line as a single H1 heading in the form: # <title>
+                            
+                            Content: %s
+                            """,
+                    """
+                            Review and improve the following blog post.
+                            %s
+                            
+                            Tekst do recenzji:
+                            %s
+                            """,
+                    draft,
+                    "reviewer",
+                    Persons.REVIEWER,
+                    "recenzent-szkiców-bloga",
+                    "Recenzja i poprawa szkicu wpisu bloga",
+                    AgentType.NATIVE,
+                    ai);
 
             // Wyczyść format, jeśli potrzeba
             reviewedMarkdown = FormatErrorHandler.extractCleanMarkdown(reviewedMarkdown);
@@ -116,39 +143,30 @@ public class BlogWriterAgent {
             List<String> extractedCodeBlocks = new java.util.ArrayList<>();
             String proseContent = extractCodeBlocks(reviewedPost.content(), extractedCodeBlocks);
 
-            // Prompt główny - operuje TYLKO na tekście bez bloków kodu
-            String linkedProse = resilientExecutor.executeWithRetryAndFormatFallback(
-                    // Główna funkcja
-                    () -> ai
-                            .withLlmByRole("linker")
-                            .withPromptContributor(Persons.REVIEWER)
-                            .withId("linker-szkiców-bloga")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation, or Wikipedia if nothing else found).
-                                    Identify AT MOST 8 of the most important technical terms for linking.
-                                    Do NOT add links inside code blocks or backtick spans.
-                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                                    Keep the first line as a single H1 heading in the form: # <title>
-                                    
-                                    Content: %s
-                                    """.formatted(proseContent)),
-
-                    // Fallback funkcja (ze wzmocnionym prompt-em)
-                    () -> ai
-                            .withLlmByRole("reviewer")
-                            .withPromptContributor(Persons.REVIEWER)
-                            .withId("linker-szkiców-bloga-fallback")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Nie zmieniaj problematycznych linków. Zwróć prawidłowy markdown.
-                                    %s
-                                    
-                                    Tekst do recenzji (bez bloków kodu):
-                                    %s
-                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), proseContent)),
-
-                    "Dodanie linków i ich weryfikacja");
+            String linkedProse = agentService.sendPrompt(
+                    """
+                            In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation, or Wikipedia if nothing else found).
+                            Identify AT MOST 8 of the most important technical terms for linking.
+                            Do NOT add links inside code blocks or backtick spans.
+                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                            Keep the first line as a single H1 heading in the form: # <title>
+                            
+                            Content: %s
+                            """,
+                    """
+                            Nie zmieniaj problematycznych linków. Zwróć prawidłowy markdown.
+                            %s
+                            
+                            Tekst do recenzji (bez bloków kodu):
+                            %s
+                            """,
+                    proseContent,
+                    "linker",
+                    Persons.REVIEWER,
+                    "linker-szkiców-bloga",
+                    "Linkowanie terminów w szkicu wpisu bloga",
+                    AgentType.NATIVE,
+                    ai);
 
             // Przywróć bloki kodu do wynikowego markdown
             String linkedBlogDraft = restoreCodeBlocks(linkedProse, extractedCodeBlocks);
@@ -160,31 +178,6 @@ public class BlogWriterAgent {
             log.error("Błąd przy recenzji wpisu: " + e.getMessage(), e);
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Wyciąga bloki kodu z Markdown i zastępuje je placeholderami {{CODE_BLOCK_N}}.
-     * Zmniejsza ilość tokenów wysyłanych do LLM (bloki kodu nie wymagają linkowania terminów).
-     *
-     * @param markdown     pełny tekst Markdown
-     * @param codeBlocks   lista do wypełnienia wyciągniętymi blokami kodu
-     * @return tekst Markdown z placeholderami zamiast bloków kodu
-     */
-    private String extractCodeBlocks(String markdown, List<String> codeBlocks) {
-        Pattern codeBlockPattern = Pattern.compile("(?s)```[^\\n]*\\n.*?```");
-        java.util.regex.Matcher matcher = codeBlockPattern.matcher(markdown);
-        StringBuilder result = new StringBuilder();
-        int lastEnd = 0;
-        int blockIndex = 0;
-        while (matcher.find()) {
-            result.append(markdown, lastEnd, matcher.start());
-            result.append("{{CODE_BLOCK_").append(blockIndex).append("}}");
-            codeBlocks.add(matcher.group());
-            blockIndex++;
-            lastEnd = matcher.end();
-        }
-        result.append(markdown.substring(lastEnd));
-        return result.toString();
     }
 
     /**
@@ -205,37 +198,27 @@ public class BlogWriterAgent {
     public EditedPost editReviewedBlogPost(LinkedPost linkedPost, Ai ai) {
         try {
             // Prompt główny
-            String editedMarkdown = resilientExecutor.executeWithRetryAndFormatFallback(
-                    // Główna funkcja
-                    () -> ai
-                            .withLlmByRole("editor_pl")
-                            .withPromptContributors(List.of(Persons.EDITOR_PL))
-                            .withId("redaktor-szkiców-bloga")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Correct and polish blog post and text diagrams.
-                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                                    Keep the first line as a single H1 heading in the form: # <title>
-                                    
-                                    Title: %s
-                                    Content: %s
-                                    """.formatted(linkedPost.title(), linkedPost.content())),
-
-                    // Fallback funkcja (ze wzmocnionym promptem)
-                    () -> ai
-                            .withLlmByRole("editor")
-                            .withPromptContributors(List.of(Persons.EDITOR_PL))
-                            .withId("redaktor-szkiców-bloga-fallback")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Popraw i wypoleruj wpis bloga.
-                                    %s
-                                    
-                                    Tytuł: %s
-                                    Treść: %s
-                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), linkedPost.title(), linkedPost.content())),
-
-                    "Edycja i poprawa redakcyjna wpisu");
+            String editedMarkdown = agentService.sendPrompt(
+                    """
+                            Correct and polish blog post and text diagrams.
+                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                            Keep the first line as a single H1 heading in the form: # <title>
+                            
+                            Content: %s
+                            """,
+                    """
+                            Popraw i wypoleruj wpis bloga.
+                            %s
+                            
+                            Treść: %s
+                            """,
+                    linkedPost.content(),
+                    "editor_pl",
+                    Persons.EDITOR_PL,
+                    "redaktor-szkiców-bloga",
+                    "Edycja i poprawa redakcyjna wpisu bloga",
+                    AgentType.NATIVE,
+                    ai);
 
             // Wyczyść format, jeśli potrzeba
             editedMarkdown = FormatErrorHandler.extractCleanMarkdown(editedMarkdown);
@@ -255,37 +238,27 @@ public class BlogWriterAgent {
     public MarkdownPost makeAttractiveReviewedBlogPost(EditedPost reviewedPost, Ai ai) {
         try {
             // Prompt główny
-            String markdown = resilientExecutor.executeWithRetryAndFormatFallback(
-                    // Główna funkcja
-                    () -> ai
-                            .withLlmByRole("md_expert")
-                            .withPromptContributors(List.of(Persons.MARKDOWN_EXPERT))
-                            .withId("ekspert-markdown")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Make markdown file more attractive and easy to read.
-                                    Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                                    Keep the first line as a single H1 heading in the form: # <title>
-                                    
-                                    Title: %s
-                                    Content: %s
-                                    """.formatted(reviewedPost.title(), reviewedPost.content())),
-
-                    // Fallback funkcja (ze wzmocnionym promptem)
-                    () -> ai
-                            .withLlmByRole("md_expert")
-                            .withPromptContributors(List.of(Persons.MARKDOWN_EXPERT))
-                            .withId("ekspert-markdown")
-                            .creating(String.class)
-                            .fromPrompt("""
-                                    Correct markdown file
-                                    %s
-                                    
-                                    Tytuł: %s
-                                    Treść: %s
-                                    """.formatted(FormatErrorHandler.getFallbackPrompt(), reviewedPost.title(), reviewedPost.content())),
-
-                    "Edycja i poprawa pliku Markdown");
+            String markdown = agentService.sendPrompt(
+                    """
+                            Make markdown file more attractive and easy to read.
+                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
+                            Keep the first line as a single H1 heading in the form: # <title>
+                            
+                            Content: %s
+                            """,
+                    """
+                            Correct markdown file
+                            %s
+                            
+                            Treść: %s
+                            """,
+                    reviewedPost.content(),
+                    "md_expert",
+                    Persons.MARKDOWN_EXPERT,
+                    "ekspert-markdown",
+                    "Edycja i poprawa pliku Markdown",
+                    AgentType.NATIVE,
+                    ai);
 
             MarkdownPost translatedBlogPost = new MarkdownPost(reviewedPost.title(), markdown, reviewedPost.feedback());
             writeToFile(translatedBlogPost);
