@@ -6,6 +6,7 @@ import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.domain.io.UserInput;
 import com.example.spring_babel_rag.configuration.BlogWriteAgentProperties;
+import com.example.spring_babel_rag.configuration.BlogWriterPrompts;
 import com.example.spring_babel_rag.configuration.Persons;
 import com.example.spring_babel_rag.error.FormatErrorHandler;
 import com.example.spring_babel_rag.model.*;
@@ -67,21 +68,8 @@ public class BlogWriterAgent {
     public String writeBlogDraft(UserInput userInput, Ai ai) {
         try {
             return agentService.sendPrompt(
-                    """
-                            Write a blog post about: %s
-                            
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            The first line must be a single H1 heading in the form: # <title>
-                            Text prepare in polish language.
-                            """,
-                    """
-                            Write a blog post about: %s
-                            
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            The first line must be a single H1 heading in the form: # <title>
-                            Text prepare in polish language.
-                            %s
-                            """,
+                    BlogWriterPrompts.DRAFT_MAIN,
+                    BlogWriterPrompts.DRAFT_FALLBACK,
                     userInput.getContent(),
                     "developer",
                     Persons.DEVELOPER,
@@ -100,20 +88,8 @@ public class BlogWriterAgent {
         try {
             // Prompt główny
             String reviewedMarkdown = agentService.sendPrompt(
-                    """
-                            Review and improve the following blog post.
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            Keep the first line as a single H1 heading in the form: # <title>
-                            
-                            Content: %s
-                            """,
-                    """
-                            Review and improve the following blog post.
-                            %s
-                            
-                            Tekst do recenzji:
-                            %s
-                            """,
+                    BlogWriterPrompts.REVIEW_MAIN,
+                    BlogWriterPrompts.REVIEW_FALLBACK,
                     draft,
                     "reviewer",
                     Persons.REVIEWER,
@@ -144,22 +120,8 @@ public class BlogWriterAgent {
             String proseContent = extractCodeBlocks(reviewedPost.content(), extractedCodeBlocks);
 
             String linkedProse = agentService.sendPrompt(
-                    """
-                            In the event of difficult technical terminology, replace the first instance of each term with a link to a reference site (owner documentation, or Wikipedia if nothing else found).
-                            Identify AT MOST 8 of the most important technical terms for linking.
-                            Do NOT add links inside code blocks or backtick spans.
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            Keep the first line as a single H1 heading in the form: # <title>
-                            
-                            Content: %s
-                            """,
-                    """
-                            Nie zmieniaj problematycznych linków. Zwróć prawidłowy markdown.
-                            %s
-                            
-                            Tekst do recenzji (bez bloków kodu):
-                            %s
-                            """,
+                    BlogWriterPrompts.LINKER_MAIN,
+                    BlogWriterPrompts.LINKER_FALLBACK,
                     proseContent,
                     "linker",
                     Persons.REVIEWER,
@@ -199,19 +161,8 @@ public class BlogWriterAgent {
         try {
             // Prompt główny
             String editedMarkdown = agentService.sendPrompt(
-                    """
-                            Correct and polish blog post and text diagrams.
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            Keep the first line as a single H1 heading in the form: # <title>
-                            
-                            Content: %s
-                            """,
-                    """
-                            Popraw i wypoleruj wpis bloga.
-                            %s
-                            
-                            Treść: %s
-                            """,
+                    BlogWriterPrompts.EDIT_MAIN,
+                    BlogWriterPrompts.EDIT_FALLBACK,
                     linkedPost.content(),
                     "editor_pl",
                     Persons.EDITOR_PL,
@@ -239,25 +190,14 @@ public class BlogWriterAgent {
         try {
             // Prompt główny
             String markdown = agentService.sendPrompt(
-                    """
-                            Make markdown file more attractive and easy to read.
-                            Return only valid Markdown (no JSON, no code fences wrapping the whole answer).
-                            Keep the first line as a single H1 heading in the form: # <title>
-                            
-                            Content: %s
-                            """,
-                    """
-                            Correct markdown file
-                            %s
-                            
-                            Treść: %s
-                            """,
+                    BlogWriterPrompts.ATTRACTIVE_MAIN,
+                    BlogWriterPrompts.ATTRACTIVE_FALLBACK,
                     reviewedPost.content(),
                     "md_expert",
                     Persons.MARKDOWN_EXPERT,
                     "ekspert-markdown",
                     "Edycja i poprawa pliku Markdown",
-                    AgentType.NATIVE,
+                    AgentType.COPILOT,
                     ai);
 
             MarkdownPost translatedBlogPost = new MarkdownPost(reviewedPost.title(), markdown, reviewedPost.feedback());

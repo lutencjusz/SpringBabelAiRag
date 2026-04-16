@@ -16,6 +16,9 @@ spring:
 blog-write-agent:
   outputDir: blog-posts
 
+copilot:
+  timeout: 240s
+
 # Konfiguracja polityki retry (nasz ResilientExecutor)
 retry-policy:
   # Maksymalna liczba ponownych prób dla błędów przejściowych (np. sieciowych)
