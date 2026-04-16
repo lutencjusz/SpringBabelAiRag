@@ -77,6 +77,22 @@ Wyjasnij działanie virtualnych wątków w Java
 
 Gotowy wpis zostanie zapisany jako plik Markdown w katalogu `blog-posts/`.
 
+### Komenda aliasowa raportu agentow
+
+Po uruchomieniu shella Embabel mozesz wywolac raport jednym poleceniem:
+
+```text
+raport-agentow
+```
+
+Opcjonalnie podaj sciezke do innego logu:
+
+```text
+raport-agentow --logPath C:\\logs\\intelijLog.txt
+```
+
+Raport zostanie zapisany w katalogu `reports/`.
+
 ## Struktura projektu
 
 - `src/main/java/com/example/spring_babel_rag/` - kod aplikacji

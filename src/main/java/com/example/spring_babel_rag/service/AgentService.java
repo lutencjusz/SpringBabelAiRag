@@ -38,11 +38,24 @@ public class AgentService {
     }
 
     static String formatMainPrompt(String promptTemplate, String promptContent) {
-        return promptTemplate.formatted(promptContent);
+        return substitutePlaceholders(promptTemplate, promptContent);
     }
 
     static String formatFallbackPrompt(String fallbackPromptTemplate, String promptContent) {
-        return fallbackPromptTemplate.formatted(FormatErrorHandler.getFallbackPrompt(), promptContent);
+        return substitutePlaceholders(fallbackPromptTemplate, FormatErrorHandler.getFallbackPrompt(), promptContent);
+    }
+
+    static String substitutePlaceholders(String template, String... values) {
+        String result = template;
+        for (String value : values) {
+            int placeholderIndex = result.indexOf("%s");
+            if (placeholderIndex < 0) {
+                throw new IllegalArgumentException("Brak placeholdera %s w szablonie promptu");
+            }
+            String safeValue = value == null ? "" : value;
+            result = result.substring(0, placeholderIndex) + safeValue + result.substring(placeholderIndex + 2);
+        }
+        return result;
     }
 
     static <T> T awaitWithTimeout(CompletableFuture<T> future, Duration timeout) throws Exception {

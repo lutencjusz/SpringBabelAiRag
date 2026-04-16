@@ -16,6 +16,11 @@ spring:
 blog-write-agent:
   outputDir: blog-posts
 
+agent-log-skill:
+  source-log-path: C:/logs/intelijLog.txt
+  output-dir: reports
+  max-table-rows: 25
+
 copilot:
   timeout: 240s
 
@@ -49,9 +54,9 @@ embabel:
   models:
     default-llm: gpt-5-mini
     llms:
-      developer: claude-sonnet-4-5
+      developer: gpt-5-mini
       translator: gpt-4o-mini
       editor_pl: gpt-5-mini
-      reviewer: claude-sonnet-4-5
+      reviewer: gpt-5-mini
       linker: gpt-4o-mini
-      md_expert: claude-haiku-4-5
+      md_expert: gpt-5-mini

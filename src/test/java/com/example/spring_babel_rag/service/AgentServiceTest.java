@@ -42,5 +42,15 @@ class AgentServiceTest {
         assertEquals("ok", response);
         assertTrue(future.isDone());
     }
+
+    @Test
+    void shouldKeepLiteralPercentCharactersInPromptTemplate() {
+        String template = "Instrukcja: skutecznosc 100%\\Windows. Tresc: %s";
+
+        String formatted = AgentService.formatMainPrompt(template, "test");
+
+        assertTrue(formatted.contains("100%\\Windows"));
+        assertTrue(formatted.endsWith("Tresc: test"));
+    }
 }
 

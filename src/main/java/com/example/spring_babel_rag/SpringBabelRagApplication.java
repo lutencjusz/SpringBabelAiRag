@@ -1,13 +1,14 @@
 package com.example.spring_babel_rag;
 
 import com.example.spring_babel_rag.configuration.BlogWriteAgentProperties;
+import com.example.spring_babel_rag.configuration.AgentLogSkillProperties;
 import com.example.spring_babel_rag.configuration.CopilotProperties;
 import com.example.spring_babel_rag.configuration.RetryPolicyProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
-@EnableConfigurationProperties({BlogWriteAgentProperties.class, RetryPolicyProperties.class, CopilotProperties.class})
+@EnableConfigurationProperties({BlogWriteAgentProperties.class, RetryPolicyProperties.class, CopilotProperties.class, AgentLogSkillProperties.class})
 @SpringBootApplication
 public class SpringBabelRagApplication {
 

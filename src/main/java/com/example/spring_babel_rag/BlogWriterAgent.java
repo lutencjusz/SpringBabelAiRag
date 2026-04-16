@@ -197,7 +197,7 @@ public class BlogWriterAgent {
                     Persons.MARKDOWN_EXPERT,
                     "ekspert-markdown",
                     "Edycja i poprawa pliku Markdown",
-                    AgentType.COPILOT,
+                    AgentType.NATIVE,
                     ai);
 
             MarkdownPost translatedBlogPost = new MarkdownPost(reviewedPost.title(), markdown, reviewedPost.feedback());
